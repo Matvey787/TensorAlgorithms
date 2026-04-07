@@ -6,7 +6,7 @@ add_library(${TENSOR_LIB})
 
 target_compile_features(${TENSOR_LIB} PRIVATE cxx_std_23)
 
-file(GLOB_RECURSE TENSOR_MODULES 
+file(GLOB_RECURSE TENSOR_MODULES
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cppm"
 )
 
@@ -21,5 +21,3 @@ target_sources(${TENSOR_LIB}
         FILES
             ${TENSOR_MODULES}
 )
-
-target_include_directories(${TENSOR_LIB} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/boost)
