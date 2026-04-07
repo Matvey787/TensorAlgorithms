@@ -1,0 +1,16 @@
+{
+  "revision": 0,
+  "rules": [
+    {
+      "primary-output": "tensor/CMakeFiles/tensor_lib.dir/tensor.cppm.o",
+      "provides": [
+        {
+          "is-interface": true,
+          "logical-name": "tensor_lib",
+          "source-path": "/home/matvey/work/sber/SberWinograd/tensor/tensor.cppm"
+        }
+      ]
+    }
+  ],
+  "version": 1
+}

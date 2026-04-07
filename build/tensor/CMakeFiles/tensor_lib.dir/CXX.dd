@@ -1,0 +1,4 @@
+ninja_dyndep_version = 1.0
+build tensor/CMakeFiles/tensor_lib.dir/tensor.cppm.o | tensor/CMakeFiles/tensor_lib.dir/tensor_lib.pcm: dyndep
+  restat = 1
+

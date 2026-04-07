@@ -1,0 +1,6 @@
+/home/matvey/work/sber/SberWinograd/build/CMakeFiles/winograd.dir
+/home/matvey/work/sber/SberWinograd/build/CMakeFiles/edit_cache.dir
+/home/matvey/work/sber/SberWinograd/build/CMakeFiles/rebuild_cache.dir
+/home/matvey/work/sber/SberWinograd/build/tensor/CMakeFiles/tensor_lib.dir
+/home/matvey/work/sber/SberWinograd/build/tensor/CMakeFiles/edit_cache.dir
+/home/matvey/work/sber/SberWinograd/build/tensor/CMakeFiles/rebuild_cache.dir
