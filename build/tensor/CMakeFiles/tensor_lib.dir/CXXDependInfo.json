@@ -24,7 +24,16 @@
 	"dir-top-src" : "/home/matvey/work/sber/SberWinograd",
 	"exports" : [],
 	"forward-modules-from-target-dirs" : [],
-	"include-dirs" : [],
+	"include-dirs" : 
+	[
+		"/home/matvey/work/sber/SberWinograd/tensor/third_party/boost-json/include",
+		"/home/matvey/work/sber/SberWinograd/tensor/third_party/boost-assert/include",
+		"/home/matvey/work/sber/SberWinograd/tensor/third_party/boost-config/include",
+		"/home/matvey/work/sber/SberWinograd/tensor/third_party/boost-container/include",
+		"/home/matvey/work/sber/SberWinograd/tensor/third_party/boost-intrusive/include",
+		"/home/matvey/work/sber/SberWinograd/tensor/third_party/boost-container_hash/include",
+		"/home/matvey/work/sber/SberWinograd/tensor/third_party/boost-describe/include"
+	],
 	"language" : "CXX",
 	"linked-target-dirs" : [],
 	"module-dir" : "/home/matvey/work/sber/SberWinograd/build/tensor/CMakeFiles/tensor_lib.dir",

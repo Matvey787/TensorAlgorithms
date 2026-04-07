@@ -1,5 +1,7 @@
 module;
 
+#include <boost/json.hpp>
+
 #include <exception>
 #include <concepts>
 #include <vector>
@@ -69,6 +71,11 @@ public:
     [[nodiscard]] size_t channels()  const noexcept { return channels_;  }
     [[nodiscard]] size_t batchSize() const noexcept { return batchSize_; }
 
+    const std::vector<layer>& getLayers() const 
+    {
+        return layers_;
+    }
+
     layer& operator()(size_t batch_idx, size_t channel_idx)
     {
         return layers_[batch_idx * channels_ + channel_idx];
@@ -78,6 +85,7 @@ public:
     {
         return layers_[batch_idx * channels_ + channel_idx];
     }
+
 };
 
 
@@ -131,12 +139,30 @@ Tensor<ValT> conv_naive(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
     return output;
 }
 
+namespace json = boost::json;
+
 export template<typename ValT>
 decltype(auto) dump(const Tensor<ValT>& tensor)
 {
-    std::cout << "Tensor data (json format): \n"
+    const size_t channels = tensor.channels();
+    const size_t batchSize = tensor.batchSize();
 
-    
+    json::object tensor_obj;
+    tensor_obj["height"] = tensor.height();
+    tensor_obj["height"] = tensor.height();
+    tensor_obj["channels"] = channels;
+    tensor_obj["batchSize"] = batchSize;
+
+    json::array layers_arr;
+    for (size_t batch_idx = 0; batch_idx < batchSize; ++batch_idx)
+        for (size_t channel_idx = 0; channel_idx < channels; ++channel_idx)
+            layers_arr.push_back(tensor(batch_idx, channel_idx));
+
+    tensor_obj["layers"] = layers_arr;
+
+
+    std::cout << "Tensor data (json format): \n"
+    std::cout << json::serialize(tensor_obj) << '\n';
 }
 
 
