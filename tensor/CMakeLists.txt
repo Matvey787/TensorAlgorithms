@@ -1,11 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 project(Tensor_lib LANGUAGES CXX)
 
-add_subdirectory(third_party/boost-json)
-
-target_compile_definitions(boost_json PUBLIC BOOST_JSON_STANDALONE)
-
-
 set(TENSOR_LIB tensor_lib)
 add_library(${TENSOR_LIB})
 
@@ -27,4 +22,4 @@ target_sources(${TENSOR_LIB}
             ${TENSOR_MODULES}
 )
 
-target_link_libraries(${TENSOR_LIB} PRIVATE boost_json)
+target_include_directories(${TENSOR_LIB} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/boost)

@@ -1,11 +1,14 @@
 module;
 
-#include <boost/json/src.hpp>
+#define BOOST_JSON_HEADER_ONLY
+#include <boost/json.hpp>
+
 
 #include <exception>
 #include <concepts>
 #include <vector>
 #include <stdexcept>
+#include <iostream>
 
 export module tensor_lib;
 
@@ -142,7 +145,7 @@ Tensor<ValT> conv_naive(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
 namespace json = boost::json;
 
 export template<typename ValT>
-decltype(auto) dump(const Tensor<ValT>& tensor)
+decltype(auto) dump(const Tensor<ValT>& tensor, std::ostream& os = std::cout)
 {
     const size_t channels = tensor.channels();
     const size_t batchSize = tensor.batchSize();
@@ -161,10 +164,12 @@ decltype(auto) dump(const Tensor<ValT>& tensor)
     tensor_obj["layers"] = layers_arr;
 
 
-    std::cout << "Tensor data (json format): \n"
-    std::cout << json::serialize(tensor_obj) << '\n';
+    os << "Tensor data (json format): \n";
+    os << json::serialize(tensor_obj) << '\n';
 }
 
+export template<typename ValT>
+decltype
 
 
 namespace traits
