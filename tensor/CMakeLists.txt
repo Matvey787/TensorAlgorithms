@@ -1,31 +1,9 @@
 cmake_minimum_required(VERSION 3.28)
 project(Tensor_lib LANGUAGES CXX)
 
-
-add_subdirectory(third_party/boost-config)
-
-# ============================================
-# Зависимости для boost-container
-# ============================================
-add_subdirectory(third_party/boost-intrusive)      # требуется container
-add_subdirectory(third_party/boost-container)
-
-# ============================================
-# Зависимости для boost-container_hash
-# ============================================
-add_subdirectory(third_party/boost-describe)       # требуется container_hash
-add_subdirectory(third_party/boost-type_traits)    # требуется container_hash
-add_subdirectory(third_party/boost-container_hash) # требуется boost-json
-
-# ============================================
-# Остальные зависимости
-# ============================================
-add_subdirectory(third_party/boost-assert)
-
-# ============================================
-# Основная библиотека
-# ============================================
 add_subdirectory(third_party/boost-json)
+
+target_compile_definitions(boost_json PUBLIC BOOST_JSON_STANDALONE)
 
 
 set(TENSOR_LIB tensor_lib)
@@ -49,4 +27,4 @@ target_sources(${TENSOR_LIB}
             ${TENSOR_MODULES}
 )
 
-target_link_libraries(${TENSOR_LIB} PRIVATE Boost::json)
+target_link_libraries(${TENSOR_LIB} PRIVATE boost_json)

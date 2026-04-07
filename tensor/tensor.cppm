@@ -1,6 +1,6 @@
 module;
 
-#include <boost/json.hpp>
+#include <boost/json/src.hpp>
 
 #include <exception>
 #include <concepts>
