@@ -12,7 +12,7 @@ set(EXE_NAME winograd)
 
 add_executable(${EXE_NAME} main.cpp)
 
-target_link_libraries(${EXE_NAME} PRIVATE tensor_lib)
+target_link_libraries(${EXE_NAME} PRIVATE tensor_gen)
 
 target_compile_features(${EXE_NAME} PRIVATE cxx_std_23)
 

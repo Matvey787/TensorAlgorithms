@@ -1,43 +1,52 @@
 import torch
 import torch.nn as nn
+import json
 
-# ==================== РАЗНЫЕ ЗНАЧЕНИЯ ====================
-N = 2          # размер батча
-C_in = 3       # входных каналов
-H, W = 6, 6    # высота и ширина
-K = 3          # размер ядра
-C_out = 2      # выходных каналов
+def generateTensors():
+    batch_size = 1
+    in_channels = 4
+    height, width = 3, 4 
+    k_size = 3
+    out_channels = 1
 
-# Создаём входной тензор со случайными значениями
-input_tensor = torch.randn((N, C_in, H, W))  # разные случайные числа
+    input_tensor = torch.randn(batch_size, in_channels, height, width)
 
-# Создаём свёрточный слой
-conv = nn.Conv2d(in_channels=C_in, 
-                 out_channels=C_out, 
-                 kernel_size=K, 
-                 stride=1, 
-                 padding=0)
+    conv = nn.Conv2d(in_channels=in_channels, 
+                    out_channels=out_channels,
+                    kernel_size=k_size,
+                    bias=False)
 
-# Заполняем веса случайными значениями
-with torch.no_grad():
-    conv.weight = nn.Parameter(torch.randn(C_out, C_in, K, K))  # случайные веса
-    conv.bias = nn.Parameter(torch.randn(C_out))  # случайные bias
+    kernel = conv.weight.data
 
-# Выполняем свёртку
-output_tensor = conv(input_tensor)
+    output = conv(input_tensor)
 
-# ====================== ВЫВОД ======================
-print("=== СВЁРТКА СО СЛУЧАЙНЫМИ ЗНАЧЕНИЯМИ ===\n")
+    return [input_tensor, kernel, output]
 
-print(f"Входной тензор (первое изображение, первый канал):")
-print(input_tensor[0, 0])
-print(f"\nМинимум: {input_tensor.min():.3f}, Максимум: {input_tensor.max():.3f}")
+def tensors_to_json(tensors):
+    with open("test3.json", "w", encoding="utf-8") as f:
+        data = {"tensors": []}
 
-print(f"\nВеса ядра (первый выходной канал, первый входной канал):")
-print(conv.weight[0, 0])
+        for tensor in tensors:
+            shape = list(tensor.shape)
+            b_size, channels, h, w = shape
 
-print(f"\nBias: {conv.bias.data}")
+            tensor_dict = {
+                "height": h,
+                "width": w,
+                "channels": channels,
+                "batchSize": b_size,
+                "layers": []
+            }
 
-print(f"\nВыходной тензор (первое изображение, первый канал):")
-print(output_tensor[0, 0])
-print(f"\nМинимум: {output_tensor.min():.3f}, Максимум: {output_tensor.max():.3f}")
+            for b in range(b_size):
+                for c in range(channels):
+                    flat_layer = tensor[b, c].flatten().tolist()
+                    tensor_dict["layers"].append(flat_layer)
+
+            data["tensors"].append(tensor_dict)
+
+        json.dump(data, f, indent=4, ensure_ascii=False, sort_keys=False)
+
+if __name__ == "__main__":
+    tensors = generateTensors()
+    tensors_to_json(tensors)
