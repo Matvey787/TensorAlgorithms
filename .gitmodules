@@ -1,0 +1,3 @@
+[submodule "tensor/third_party/nlohmann_json"]
+	path = tensor/third_party/nlohmann_json
+	url = https://github.com/nlohmann/json.git
