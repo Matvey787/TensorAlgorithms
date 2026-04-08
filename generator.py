@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import json
-
+ 
 def generateTensors():
     batch_size = 1
     in_channels = 4

@@ -101,7 +101,7 @@ void dump(const std::vector<Tensor<ValT>>& tensors, std::ostream& os = std::cout
 
             tensor_obj["layers"].push_back(flat);
         }
-
+ 
         root["tensors"].push_back(tensor_obj);
     }
 

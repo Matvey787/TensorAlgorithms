@@ -4,7 +4,7 @@ import tensor_gen;
 import tensor_io;
 import tensor_conv;
 
-
+ 
 int main() try
 {
     auto&& tensors = tensor::read<float>("test3.json");
