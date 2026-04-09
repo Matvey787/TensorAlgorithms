@@ -24,6 +24,9 @@ Tensor<ValT> conv_naive(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
     const std::size_t kH     = kernel.height();
     const std::size_t kW     = kernel.width();
 
+    if (iH < kH || iW < kW)
+        throw std::runtime_error("The input tensor cannot be smaller than the kernel.");
+
     const std::size_t oH = iH - kH + 1;
     const std::size_t oW = iW - kW + 1;
 
@@ -80,6 +83,12 @@ Tensor<ValT> conv_winograd(const Tensor<ValT>& input, const Tensor<ValT>& kernel
 
     if (kH != 3 || kW != 3)
         throw std::runtime_error("Kernel should be 3x3 for Winograd F(2,3).");
+
+    if (iH < 3 || iW < 3)
+        throw std::runtime_error("Minimum size of input matrix for Winograd is 3x3.");
+
+    if (iH < kH || iW < kW)
+        throw std::runtime_error("The input tensor cannot be smaller than the kernel.");
 
     const std::size_t oH = iH - 2;
     const std::size_t oW = iW - 2;

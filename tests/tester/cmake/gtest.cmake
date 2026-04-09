@@ -134,7 +134,9 @@ target_link_libraries(${GTEST_OUTPUT_EXEC_FILE_NAME}
     ${GTEST_ADDITIONAL_LIBS_NAMES}
 )
 
-# add_coverage_to_target(${GTEST_OUTPUT_EXEC_FILE_NAME})
+target_compile_features(${GTEST_OUTPUT_EXEC_FILE_NAME} PRIVATE cxx_std_23)
+
+add_coverage_to_target(${GTEST_OUTPUT_EXEC_FILE_NAME})
 
 
 

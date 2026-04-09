@@ -3,7 +3,7 @@ project(Tensor_lib LANGUAGES CXX)
 
 
 
-set(TENSOR_LIB tensor_gen)
+set(TENSOR_LIB tensor_lib)
 add_library(${TENSOR_LIB})
 
 target_compile_features(${TENSOR_LIB} PRIVATE cxx_std_23)

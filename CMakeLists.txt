@@ -14,7 +14,7 @@ add_executable(${EXE_NAME} src/main.cpp)
 
 target_link_libraries(${EXE_NAME}
     PRIVATE
-        tensor_gen
+        tensor_lib
         cxxopts::cxxopts
 )
 
@@ -49,7 +49,7 @@ add_executable(${EXE_NAME2} src/main.cpp)
 
 target_link_libraries(${EXE_NAME2}
     PRIVATE
-        tensor_gen
+        tensor_lib
         cxxopts::cxxopts
 )
 
@@ -72,3 +72,4 @@ target_compile_features(${EXE_NAME2} PRIVATE cxx_std_23)
 
 target_compile_definitions(${EXE_NAME2} PRIVATE COMPARE)
 
+add_subdirectory(tests/tester)
