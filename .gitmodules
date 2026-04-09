@@ -1,3 +1,6 @@
 [submodule "tensor/third_party/nlohmann_json"]
 	path = tensor/third_party/nlohmann_json
 	url = https://github.com/nlohmann/json.git
+[submodule "src/third_party/cxxopts"]
+	path = src/third_party/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git
