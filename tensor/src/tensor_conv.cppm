@@ -116,9 +116,9 @@ Tensor<ValT> conv_winograd(const Tensor<ValT>& input, const Tensor<ValT>& kernel
 
     for (size_t channel_idx = 0; channel_idx < iCh; ++channel_idx)
     {
-        const Layer<ValT>& g = kernel(0, channel_idx);
+        const Layer<ValT>& kLayer = kernel(0, channel_idx);
 
-        Layer<ValT> transformedKernelLayer = G.mul_matrix(g).mul_matrix(GT);
+        Layer<ValT> transformedKernelLayer = G.mul_matrix(kLayer).mul_matrix(GT);
 
         transformedKernel.push_back(std::move(transformedKernelLayer));
     }
@@ -161,10 +161,10 @@ Tensor<ValT> conv_winograd(const Tensor<ValT>& input, const Tensor<ValT>& kernel
                 bool xOutput_maxIdx = (x + 1) < oW;
                 bool yOutput_maxIdx = (y + 1) < oH;
 
-                output(b, 0)[x + 0,              y + 0             ] = result[0,                  0                 ];
-                output(b, 0)[x + xOutput_maxIdx, y + 0             ] = result[x + xOutput_maxIdx, 0                 ];
-                output(b, 0)[x + 0,              y + yOutput_maxIdx] = result[0,                  y + yOutput_maxIdx];
-                output(b, 0)[x + xOutput_maxIdx, y + yOutput_maxIdx] = result[x + xOutput_maxIdx, y + yOutput_maxIdx];
+                output(b, 0)[x + 0,              y + 0             ] = result[0,              0             ];
+                output(b, 0)[x + xOutput_maxIdx, y + 0             ] = result[xOutput_maxIdx, 0             ];
+                output(b, 0)[x + 0,              y + yOutput_maxIdx] = result[0,              yOutput_maxIdx];
+                output(b, 0)[x + xOutput_maxIdx, y + yOutput_maxIdx] = result[xOutput_maxIdx, yOutput_maxIdx];
 
             }
         }

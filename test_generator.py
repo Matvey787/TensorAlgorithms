@@ -3,16 +3,17 @@ import torch.nn as nn
 import json
  
 def generateTensors():
-    batch_size = 1
+
+    # change parameters here
+    batch_size = 2
     in_channels = 4
-    height, width = 3, 4 
+    height, width = 100, 100
     k_size = 3
-    out_channels = 1
 
     input_tensor = torch.randn(batch_size, in_channels, height, width)
 
     conv = nn.Conv2d(in_channels=in_channels, 
-                    out_channels=out_channels,
+                    out_channels=1,
                     kernel_size=k_size,
                     bias=False)
 
@@ -23,7 +24,7 @@ def generateTensors():
     return [input_tensor, kernel, output]
 
 def tensors_to_json(tensors):
-    with open("test3.json", "w", encoding="utf-8") as f:
+    with open("test4.json", "w", encoding="utf-8") as f:
         data = {"tensors": []}
 
         for tensor in tensors:
