@@ -12,6 +12,7 @@ import tensor_gen;
  
 namespace tensor 
 {
+
 export template<typename ValT>
 Tensor<ValT> conv_naive(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
 {
@@ -181,6 +182,8 @@ Tensor<ValT> conv_winograd(const Tensor<ValT>& input, const Tensor<ValT>& kernel
 
     return output;
 }
+
+
 
 
 } // namespace tensor
