@@ -56,6 +56,7 @@ $M = transformedKernelLayer \odot transformedInput$ (код: `Layer<ValT> M = tr
 Оба алгоритма одинаково хорошо параллелятся по [(x, y, batch) в NDRange](tensor/src/tensor_conv.cppm). GPU загружен в обоих случаях одинаково. А разница между ними только в том сколько умножений происходит внутри одного work-item — и это сокращение просто теряется на фоне того что GPU и так гоняет тысячи work-items параллельно по батчу.
 
 А вот например по каналам лучше видно превосходство Винограда, так как по каналам я NDRange не бил и тут уже выигрывает количество операций.
+
 <img src="md_sources/winograd_vs_naive(channels).png" width="800" alt="Winograd vs Naive Performance">
 
 ## Клонирование, сборка и запуск
@@ -250,6 +251,7 @@ python3 plotter.py batchSizeTest/test5_batchSize.ndjson batchSize
 
 ## Тестирование корректности алгоритмов и программы в целом
 
-Тестирование проводилось с помощью gtest (unit) и ctest (e2e).
+Для тестирования я взял свой небольшой фреймворк написанный ранее в проектах. Посмотреть его описание и возможности
+ можно в этом проекте или тут: [BitonicSort](https://github.com/Matvey787/BitonicSort/tree/llvm-opts/tests/tester)
 
-
+Тестирование проводилось с помощью gtest (unit) и ctest (e2e)
