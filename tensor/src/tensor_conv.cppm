@@ -4,6 +4,7 @@ module;
 #include <stdexcept>
 #include <vector>
 #include <iostream>
+#include <concepts>
 
 #ifdef WITH_OPENCL
 
@@ -29,8 +30,36 @@ import opencl;
 namespace tensor 
 {
 
+template<typename T>
+concept mustBeFloat = std::same_as<T, float>;
+
+
+
+
+template<typename ValT>
+Tensor<ValT> conv_naive_cpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel);
+
+template<typename ValT>
+    requires mustBeFloat<ValT>
+Tensor<ValT> conv_naive_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel);
+
 export template<typename ValT>
-Tensor<ValT> conv_naive(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
+Tensor<ValT> conv_naive(const Tensor<ValT>&   input, 
+                           const Tensor<ValT>&   kernel, 
+                           [[maybe_unused]] bool useGpu = false)
+{
+
+    #ifdef WITH_OPENCL
+
+    if (useGpu) return conv_naive_gpu(input, kernel);
+
+    #endif
+
+    return conv_naive_cpu(input, kernel);
+}
+
+template<typename ValT>
+Tensor<ValT> conv_naive_cpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
 {
     const std::size_t iH     = input.height();
     const std::size_t iW     = input.width();
@@ -86,6 +115,161 @@ Tensor<ValT> conv_naive(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
     return output;
 }
 
+
+#ifdef WITH_OPENCL
+
+template<typename ValT>
+    requires mustBeFloat<ValT>
+Tensor<ValT> conv_naive_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
+{
+    static opencl::KernelExecutor executor("tensor/kernels/naiveKernel.cl");
+
+    const size_t iH = input.height();
+    const size_t iW = input.width();
+    const size_t iC = input.channels();
+    const size_t iB = input.batchSize();
+
+    const size_t kH = kernel.height();
+    const size_t kW = kernel.width();
+
+    const size_t oH = iH - kH + 1;
+    const size_t oW = iW - kW + 1;
+
+    if (iH < kH || iW < kW)
+        throw std::runtime_error("The input tensor cannot be smaller than the kernel.");
+
+    const std::vector<float> iFlatData{input.data()};
+    const std::vector<float> kFlatData{kernel.data()};
+    std::vector<float> oFlatData(oH * oW * iB, 0.0f);
+
+    cl::Buffer iBuff(
+        executor.context(),
+        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+        sizeof(float) * input.size(),
+        const_cast<float*>(iFlatData.data())
+    );
+
+    cl::Buffer kBuff(
+        executor.context(),
+        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+        sizeof(float) * kernel.size(),
+        const_cast<float*>(kFlatData.data())
+    );
+    
+    cl::Buffer oBuff(
+        executor.context(),
+        CL_MEM_READ_WRITE,
+        sizeof(float) * oFlatData.size()
+    );
+
+    auto& naive_conv = executor.registerKernel("naive_conv");
+
+    naive_conv.setArg(0,  iBuff);
+    naive_conv.setArg(1,  kBuff);
+    naive_conv.setArg(2,  oBuff);
+    naive_conv.setArg(3,  static_cast<int>(iH));
+    naive_conv.setArg(4,  static_cast<int>(iW));
+    naive_conv.setArg(5,  static_cast<int>(kH));
+    naive_conv.setArg(6,  static_cast<int>(kW));
+    naive_conv.setArg(7,  static_cast<int>(oH));
+    naive_conv.setArg(8,  static_cast<int>(oW));
+    naive_conv.setArg(9,  static_cast<int>(iC));
+    naive_conv.setArg(10, static_cast<int>(iB));
+
+    executor.queue().enqueueNDRangeKernel(
+        naive_conv,
+        cl::NullRange,
+        cl::NDRange(oW, oH, iB),
+        cl::NullRange
+    );
+
+    executor.queue().enqueueReadBuffer(
+        oBuff,
+        CL_TRUE,
+        0,
+        sizeof(float) * oFlatData.size(),
+        oFlatData.data()
+    );
+
+    executor.finishQueue();
+
+    return Tensor<float>(std::move(oFlatData), oH, oW, 1, iB);
+}
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 template<typename ValT>
 Tensor<ValT> conv_winograd_cpu(const Tensor<ValT>& input,
                                const Tensor<ValT>& kernel);
@@ -109,26 +293,6 @@ Tensor<ValT> conv_winograd(const Tensor<ValT>&   input,
 
     return conv_winograd_cpu(input, kernel);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 template<typename ValT>
 Tensor<ValT> conv_winograd_cpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
@@ -246,10 +410,11 @@ Tensor<ValT> conv_winograd_cpu(const Tensor<ValT>& input, const Tensor<ValT>& ke
 
 #ifdef WITH_OPENCL
 template<typename ValT>
+    requires mustBeFloat<ValT>
 Tensor<ValT> conv_winograd_gpu(const Tensor<ValT>& input,
                                const Tensor<ValT>& kernel)
 {
-    static opencl::KernelExecutor executor("tensor/src/winogradKernel.cl");
+    static opencl::KernelExecutor executor("tensor/kernels/winogradKernel.cl");
 
     const size_t iH = input.height();
     const size_t iW = input.width();

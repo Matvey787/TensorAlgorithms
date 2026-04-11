@@ -249,7 +249,7 @@ public:
         return rawData;
     }
 
-    const size_t size() const noexcept
+    size_t size() const noexcept
     {
         return batchSize_ * channels_ * width_ * height_;
     }
