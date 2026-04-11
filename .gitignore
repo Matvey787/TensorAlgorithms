@@ -4,3 +4,9 @@ batchSizeTest/
 tensorSizeTest/
 *.json
 *.ndjson
+*.aux
+*.log
+*.out
+*.gz
+*.tex
+*.toc
