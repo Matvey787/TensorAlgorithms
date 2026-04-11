@@ -79,7 +79,7 @@ $M = transformedKernelLayer \odot transformedInput$ (код: `Layer<ValT> M = tr
 
 ```bash
 # Клонировать надо рекурсивно:
-git clone --recurse-submodules link
+git clone --recurse-submodules https://gitlab.com/matveyklg/SberWinograd.git
 
 cd SberWinograd
 ```
