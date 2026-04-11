@@ -5,11 +5,27 @@ module;
 #include <vector>
 #include <iostream>
 
+#ifdef WITH_OPENCL
+
+#define CL_HPP_ENABLE_EXCEPTIONS
+#define CL_HPP_TARGET_OPENCL_VERSION 300
+#define CL_HPP_MINIMUM_OPENCL_VERSION 300
+
+#ifndef CL_MAKE_VERSION
+#define CL_MAKE_VERSION(major, minor, patch) \
+    ((major) * 10000 + (minor) * 100 + (patch))
+#endif
+
+#include "opencl.hpp"
+
+#endif
 
 export module tensor_conv;
 
 import tensor_gen;
- 
+
+import opencl;
+
 namespace tensor 
 {
 
@@ -70,9 +86,52 @@ Tensor<ValT> conv_naive(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
     return output;
 }
 
+template<typename ValT>
+Tensor<ValT> conv_winograd_cpu(const Tensor<ValT>& input,
+                               const Tensor<ValT>& kernel);
+
+template<typename ValT>
+Tensor<ValT> conv_winograd_gpu(const Tensor<ValT>& input,
+                               const Tensor<ValT>& kernel);
+
 
 export template<typename ValT>
-Tensor<ValT> conv_winograd(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
+Tensor<ValT> conv_winograd(const Tensor<ValT>&   input, 
+                           const Tensor<ValT>&   kernel, 
+                           [[maybe_unused]] bool useGpu = false)
+{
+
+    #ifdef WITH_OPENCL
+
+    if (useGpu) return conv_winograd_gpu(input, kernel);
+
+    #endif
+
+    return conv_winograd_cpu(input, kernel);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+template<typename ValT>
+Tensor<ValT> conv_winograd_cpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
 {
     const std::size_t iH = input.height();
     const std::size_t iW = input.width();
@@ -182,6 +241,100 @@ Tensor<ValT> conv_winograd(const Tensor<ValT>& input, const Tensor<ValT>& kernel
 
     return output;
 }
+
+
+
+#ifdef WITH_OPENCL
+template<typename ValT>
+Tensor<ValT> conv_winograd_gpu(const Tensor<ValT>& input,
+                               const Tensor<ValT>& kernel)
+{
+    static opencl::KernelExecutor executor("tensor/src/winogradKernel.cl");
+
+    const size_t iH = input.height();
+    const size_t iW = input.width();
+    const size_t iC = input.channels();
+    const size_t iB = input.batchSize();
+
+    const size_t oH = iH - 2;
+    const size_t oW = iW - 2;
+
+    const std::vector<float> iFlatData{input.data()};
+    const std::vector<float> kFlatData{kernel.data()};
+    std::vector<float> oFlatData(oH * oW * iB, 0.0f);
+
+    cl::Buffer iBuff(
+        executor.context(),
+        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+        sizeof(float) * iFlatData.size(),
+        const_cast<float*>(iFlatData.data())
+    );
+
+    cl::Buffer kBuff(
+        executor.context(),
+        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+        sizeof(float) * kernel.size(),
+        const_cast<float*>(kFlatData.data())
+    );
+
+    cl::Buffer oBuff(
+        executor.context(),
+        CL_MEM_WRITE_ONLY,
+        sizeof(float) * oH * oW * iB
+    );
+
+    cl::Buffer transformedKernelBuff(
+        executor.context(),
+        CL_MEM_READ_WRITE,
+        sizeof(float) * kernel.size()
+    );
+
+    auto& transformKernel = executor.registerKernel("transformKernel");
+
+    transformKernel.setArg(0, kBuff);
+    transformKernel.setArg(1, transformedKernelBuff);
+    transformKernel.setArg(2, static_cast<int>(iC));
+
+    executor.queue().enqueueNDRangeKernel(
+        transformKernel,
+        cl::NullRange,
+        cl::NDRange(iC),
+        cl::NullRange
+    );
+
+    auto& winograd_conv = executor.registerKernel("winograd_conv");
+
+    winograd_conv.setArg(0, iBuff);
+    winograd_conv.setArg(1, transformedKernelBuff);
+    winograd_conv.setArg(2, oBuff);
+    winograd_conv.setArg(3, static_cast<int>(iH));
+    winograd_conv.setArg(4, static_cast<int>(iW));
+    winograd_conv.setArg(5, static_cast<int>(oH));
+    winograd_conv.setArg(6, static_cast<int>(oW));
+    winograd_conv.setArg(7, static_cast<int>(iC));
+    winograd_conv.setArg(8, static_cast<int>(iB));
+
+    executor.queue().enqueueNDRangeKernel(
+        winograd_conv,
+        cl::NullRange,
+        cl::NDRange((oW + 1) / 2, (oH + 1) / 2, iB),
+        cl::NullRange
+    );
+
+    executor.queue().enqueueReadBuffer(
+        oBuff,
+        CL_TRUE,
+        0,
+        sizeof(float) * oFlatData.size(),
+        oFlatData.data()
+    );
+
+    executor.finishQueue();
+
+    return Tensor<float>(std::move(oFlatData), oH, oW, 1, iB);
+}
+
+#endif
 
 
 

@@ -7,6 +7,7 @@ import tensor_io;
 import tensor_conv;
 import tensor_bench;
 
+
 import parser; 
 
 int main(int argc, char** argv) try
@@ -20,14 +21,33 @@ int main(int argc, char** argv) try
         exit(0);
     }
 
-    std::string sourceFile = parseObj.getOptionVal("source");
-    std::string outputFile = parseObj.getOptionVal("output");
+    std::string sourceFile;
+    auto sourceFileOption = parseObj.getOptionVal("source");
+    if(sourceFileOption)
+        sourceFile = sourceFileOption->as<std::string>();
+
+
+
+    std::string outputFile;
+    auto outputFileOption = parseObj.getOptionVal("output");
+    if (outputFileOption)
+        outputFile = outputFileOption->as<std::string>();
+
+
 
     if (sourceFile.empty())
     {
         std::cout << parseObj.getOptions().help() << '\n';
         throw std::runtime_error("No source file provided - no generated.");
     }
+
+
+    [[maybe_unused]] bool useGpu{false};
+    auto gpuOption = parseObj.getOptionVal("gpu");
+    if (gpuOption) useGpu = gpuOption->as<bool>();
+
+
+
 
     auto&& tensors = tensor::read<float>(sourceFile);
 
@@ -52,7 +72,7 @@ int main(int argc, char** argv) try
 
     for (auto it = tensors.begin(); it < std::prev(tensors.end()); it += 2)
     {
-        outputTensors.push_back(tensor::conv_winograd(*it, *(it + 1)));
+        outputTensors.push_back(tensor::conv_winograd(*it, *(it + 1), useGpu));
     }
 
     if (outputFile.empty())

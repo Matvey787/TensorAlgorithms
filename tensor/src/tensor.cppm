@@ -46,6 +46,16 @@ public:
         }
     }
 
+    Layer(
+        std::vector<ValT>::iterator start,
+        std::vector<ValT>::iterator end,
+        size_t                      height
+    ) : height_{height},
+        width_ {static_cast<size_t>(std::distance(start, end) / height)},
+        data_  {start, end}
+    {
+    }
+
     [[gnu::always_inline]]
     ValT& operator[](size_t x_idx, size_t y_idx)
     {
@@ -125,9 +135,14 @@ public:
         return result;
     }
 
-    ValT sum()
+    ValT sum() const
     {
         return std::accumulate(data_.begin(), data_.end(), ValT{});
+    }
+
+    const std::vector<ValT>& data() const noexcept
+    {
+        return data_;
     }
 
     [[nodiscard]] size_t height() const noexcept { return height_; }
@@ -154,6 +169,31 @@ public:
         layers_.reserve(c * batch);
         for (size_t i = 0; i < c * batch; ++i)
             layers_.emplace_back(h, w);
+    }
+
+    Tensor(
+        std::vector<ValT>&& flatData,
+        std::size_t       height,
+        std::size_t       width,
+        std::size_t       channels,
+        std::size_t       batchSize
+    ) : height_   (height),
+        width_    (width),
+        channels_ (channels),
+        batchSize_(batchSize)
+    {
+        if (flatData.size() != height * width * channels * batchSize)
+            throw std::runtime_error("Flat data size does not match tensor dimensions.");
+
+        layers_.reserve(channels * batchSize);
+        auto it = flatData.begin();
+
+        for (std::size_t i = 0; i < channels * batchSize; ++i)
+        {
+            auto next_it = it + height * width;
+            layers_.emplace_back(it, next_it, height);
+            it = next_it;
+        }
     }
 
     [[nodiscard]] size_t height()    const noexcept { return height_;    }
@@ -189,6 +229,29 @@ public:
     const Layer<ValT>& operator()(size_t batch_idx, size_t channel_idx) const
     {
         return layers_[batch_idx * channels_ + channel_idx];
+    }
+
+
+    
+    // for opencl global buffers
+
+    std::vector<ValT> data() const
+    {
+        std::vector<ValT> rawData;
+        rawData.reserve(batchSize_ * channels_ * width_ * height_);
+
+        for (std::size_t i = 0; i < channels_ * batchSize_; ++i)
+        {
+            auto&& layerData = layers_[i].data();
+            std::copy(layerData.begin(), layerData.end(), std::back_inserter(rawData));
+        }
+
+        return rawData;
+    }
+
+    const size_t size() const noexcept
+    {
+        return batchSize_ * channels_ * width_ * height_;
     }
 };
 

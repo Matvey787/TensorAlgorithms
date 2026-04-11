@@ -22,7 +22,8 @@ public:
         options_.add_options()
             ("s,source", "Input source file", cxxopts::value<std::string>())
             ("o,output", "Output JSON file name", cxxopts::value<std::string>())
-            ("h,help", "Show help message");
+            ("h,help", "Show help message")
+            ("gpu", "Use GPU", cxxopts::value<bool>()->default_value("false"));
 
         result_ = options_.parse(argc, argv);
     }
@@ -32,14 +33,11 @@ public:
         return result_.count(std::string(optionName)) > 0;
     }
 
-    std::string getOptionVal(std::string_view optionName) const
+    std::optional<cxxopts::OptionValue> getOptionVal(std::string_view optionName) const
     {
-        if (hasOption(optionName))
-        {
-            return result_[std::string(optionName)].as<std::string>();
-        }
+        if (hasOption(optionName)) return result_[std::string(optionName)];
 
-        return "";
+        return std::nullopt;
     }
 
     const cxxopts::Options& getOptions()
