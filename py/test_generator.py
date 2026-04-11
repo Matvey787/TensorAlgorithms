@@ -6,8 +6,8 @@ def generateTensors():
 
     # change parameters here
     batch_size = 2
-    in_channels = 4
-    height, width = 100, 100
+    in_channels = 1
+    height, width = 3, 3
     k_size = 3
 
     input_tensor = torch.randn(batch_size, in_channels, height, width)
@@ -24,7 +24,7 @@ def generateTensors():
     return [input_tensor, kernel, output]
 
 def tensors_to_json(tensors):
-    with open("test4.json", "w", encoding="utf-8") as f:
+    with open("test1.json", "w", encoding="utf-8") as f:
         data = {"tensors": []}
 
         for tensor in tensors:

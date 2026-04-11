@@ -51,14 +51,15 @@ double measure(auto fn, size_t runs)
 }
 
 template<typename ValT>
-BenchResult<ValT> benchmark(const Tensor<ValT>& input, const Tensor<ValT>& kernel, size_t runs = 10)
+BenchResult<ValT> benchmark(const Tensor<ValT>& input, const Tensor<ValT>& kernel, size_t runs = 10,
+const bool useGpu = false)
 {
     // прогрев
     conv_naive(input, kernel);
     conv_winograd(input, kernel);   
 
-    double naive_ms = measure<ValT>([&]{ conv_naive(input, kernel); }, runs);
-    double winograd_ms = measure<ValT>([&]{ conv_winograd(input, kernel); }, runs);
+    double naive_ms = measure<ValT>([&]{ conv_naive(input, kernel, useGpu); }, runs);
+    double winograd_ms = measure<ValT>([&]{ conv_winograd(input, kernel, useGpu); }, runs);
 
     return {
         .input_h        = input.height(),
@@ -75,26 +76,33 @@ BenchResult<ValT> benchmark(const Tensor<ValT>& input, const Tensor<ValT>& kerne
 
 export template<typename ValT>
 std::vector<BenchResult<ValT>> benchmark_all(const std::vector<Tensor<ValT>>& tensors,
-                                              size_t runs = 10)
+                                             size_t runs = 10,
+                                             const bool useGpu = false)
 {
-    if (tensors.size() % 2 != 0)
-        throw std::runtime_error("Tensors vector must contain pairs: input, kernel...");
-
     const size_t pairs = tensors.size() / 2;
     std::vector<BenchResult<ValT>> benchmarkData(pairs);
-    std::vector<std::thread> threads;
-    threads.reserve(pairs);
 
-    // каждую пару input+kernel в отдельный поток
-    for (size_t i = 0; i < pairs; ++i)
+    if (useGpu)
     {
-        threads.emplace_back([&, i]{
-            benchmarkData[i] = benchmark(tensors[i * 2], tensors[i * 2 + 1], runs);
-        });
+        for (size_t i = 0; i < pairs; ++i)
+            benchmarkData[i] = benchmark(tensors[i * 2], tensors[i * 2 + 1], runs, useGpu);
+    }
+    else
+    {
+        std::vector<std::thread> threads;
+        threads.reserve(pairs);
+
+        for (size_t i = 0; i < pairs; ++i)
+        {
+            threads.emplace_back([&, i]{
+                benchmarkData[i] = benchmark(tensors[i * 2], tensors[i * 2 + 1], runs, useGpu);
+            });
+        }
+
+        for (auto& t : threads)
+            t.join();
     }
 
-    for (auto& t : threads)
-        t.join();
 
     return benchmarkData;
 }
