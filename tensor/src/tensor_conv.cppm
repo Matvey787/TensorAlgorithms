@@ -36,6 +36,25 @@ concept mustBeFloat = std::same_as<T, float>;
 
 
 
+
+
+
+
+
+
+// ------------------------------------------------------------------
+// Naive Implementation (CPU + GPU)
+// ------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
 template<typename ValT>
 Tensor<ValT> conv_naive_cpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel);
 
@@ -207,59 +226,9 @@ Tensor<ValT> conv_naive_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kerne
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// ------------------------------------------------------------------
+// Winograd Implementation (CPU + GPU)
+// ------------------------------------------------------------------
 
 
 
