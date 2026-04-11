@@ -53,7 +53,7 @@ int main(int argc, char** argv) try
 
     #ifdef COMPARE
 
-    auto&& benchmarkData = tensor::benchmark_all(tensors, 150);
+    auto&& benchmarkData = tensor::benchmark_all(tensors, 150, useGpu);
 
 
     if (outputFile.empty())
