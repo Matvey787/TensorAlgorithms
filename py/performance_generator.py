@@ -14,17 +14,17 @@ def generate_and_save_chunks(
     
     print(f"Device: {device}")
 
-    start_size = 500
-    end_size = 1000
-    step_size = 5
+    start_size = 20
+    end_size = 20
+    step_size = 100
 
     start_batch = 2
     end_batch = 2
     step_batch = 1
     
-    start_in_channels = 3
-    end_in_channels = 3
-    step_in_channels = 1
+    start_in_channels = 1000
+    end_in_channels = 2000
+    step_in_channels = 10
 
     kernel_size = 3
 
@@ -134,8 +134,8 @@ def save_chunk(chunk, chunk_idx, prefix, device):
 if __name__ == "__main__":
     print(f"When selecting the maximum number of chunk pairs in a single file, please bear in mind your computer’s RAM capacity, as well as the size of the tensors themselves. I recommend checking the system monitor when you first run the programme to keep an eye on RAM usage. If the system becomes overloaded, terminate the programme immediately; otherwise, everything will freeze.")
     generate_and_save_chunks(
-        chunk_size=50,
-        filename_prefix="test4",
+        chunk_size=105,
+        filename_prefix="tests/performance/tensorChannelsTest/test3",
         device=None
     )
     
