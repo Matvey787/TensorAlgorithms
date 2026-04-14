@@ -43,39 +43,39 @@ __constant float GT[3][4] = {
         {                                                                \
             float accumulator = 0.0f;                                    \
             for (int k = 0; k < (leftHeight); ++k)                       \
-                accumulator += leftT[i][k] * rightT[k][j];               \
-            outT[i][j] = accumulator;                                    \
+                accumulator += *(leftT + i * (leftHeight) + k)           \
+                               * *(rightT + k * (rightHeight) + j);      \
+            *(outT + i * (rightHeight) + j) = accumulator;               \
         }
 
 __kernel void transformKernel(
     __global const float* kernel_data,
-    __global       float* kernel_transformed,
+    __global       float* transformedLayer,
     const int iCh
 )
 {
-    int ch = get_global_id(0);
-    if (ch >= iCh) return;
+    int chIdx = get_global_id(0);
 
-    float kLayer[3][3];
-    for (int r = 0; r < 3; ++r)
-        for (int c = 0; c < 3; ++c)
-            kLayer[r][c] = kernel_data[ch * 9 + r * 3 + c];
+    if (chIdx >= iCh) return;
 
-    float tmp[4][3];
-    TEN_MUL(tmp, G, kLayer, 4, 3, 3);
+    __global const float* kLayer = kernel_data + chIdx * 9;
 
-    float out[4][4];
-    TEN_MUL(out, tmp, GT, 4, 3, 4);
+    float tmp[12];
+    float out[16];
 
-    int base = ch * 16;
-    for (int r = 0; r < 4; ++r)
-        for (int c = 0; c < 4; ++c)
-            kernel_transformed[base + r * 4 + c] = out[r][c];
+    TEN_MUL(tmp, (__constant float*)G, kLayer, 4, 3, 3);
+    TEN_MUL(out, tmp, (__constant float*)GT, 4, 3, 4);
+
+    int base = chIdx * 16;
+
+    for (int rawIdx = 0; rawIdx < 4; ++rawIdx)
+        for (int colIdx = 0; colIdx < 4; ++colIdx)
+            transformedLayer[base + rawIdx * 4 + colIdx] = out[rawIdx * 4 + colIdx];
 }
 
 __kernel void winograd_conv(
     __global const float* input,
-    __global const float* kernel_transformed,
+    __global const float* transformedLayer,
     __global       float* output,
     const int iH, const int iW,
     const int oH, const int oW,
@@ -84,55 +84,61 @@ __kernel void winograd_conv(
 {
     int tile_x = get_global_id(0);
     int tile_y = get_global_id(1);
-    int b      = get_global_id(2);
+    int bIdx   = get_global_id(2);
 
-    int x = tile_x * 2;
-    int y = tile_y * 2;
+    int xStartTileIdx = tile_x * 2;
+    int yStartTileIdx = tile_y * 2;
 
-    if (x >= oW || y >= oH || b >= iBatch) return;
+    if (xStartTileIdx >= oW || yStartTileIdx >= oH || bIdx >= iBatch) return;
 
-    float accumulate[4][4] = {{0}};
+    float accumulatedLayers[16] = {0};
 
-    for (int ch = 0; ch < iCh; ++ch)
+    for (int chIdx = 0; chIdx < iCh; ++chIdx)
     {
-        float tile[4][4];
+        float tile[16];
         for (int ty = 0; ty < 4; ++ty)
             for (int tx = 0; tx < 4; ++tx)
             {
-                int iy = y + ty;
-                int ix = x + tx;
-                if (iy < iH && ix < iW)
-                    tile[ty][tx] = input[((b * iCh + ch) * iH + iy) * iW + ix];
+                int iY = yStartTileIdx + ty;
+                int iX = xStartTileIdx + tx;
+
+                if (iY < iH && iX < iW)
+                    tile[ty * 4 + tx] = input[((bIdx * iCh + chIdx) * iH + iY) * iW + iX];
                 else
-                    tile[ty][tx] = 0.0f;
+                    tile[ty * 4 + tx] = 0.0f;
             }
 
-        // transformedInput = BT * tile * B  → [4][4]
-        float tmp[4][4];
-        TEN_MUL(tmp, BT, tile, 4, 4, 4);
-        float transformedInput[4][4];
-        TEN_MUL(transformedInput, tmp, B, 4, 4, 4);
+        float tmp[16];
+        TEN_MUL(tmp, (__constant float*)BT, tile, 4, 4, 4);
 
-        int k_base = ch * 16;
+        float transformedInput[16];
+        TEN_MUL(transformedInput, tmp, (__constant float*)B, 4, 4, 4);
+
+        int k_base = chIdx * 16;
+
         for (int r = 0; r < 4; ++r)
             for (int c = 0; c < 4; ++c)
-                accumulate[r][c] += kernel_transformed[k_base + r * 4 + c]
-                                  * transformedInput[r][c];
+                accumulatedLayers[r * 4 + c] += transformedLayer[k_base + r * 4 + c]
+                                              * transformedInput[r * 4 + c];
     }
 
-    float tmp2[2][4];
-    TEN_MUL(tmp2, AT, accumulate, 2, 4, 4);
-    float result[2][2];
-    TEN_MUL(result, tmp2, A, 2, 4, 2);
+    float tmp2[8];
+    TEN_MUL(tmp2, (__constant float*)AT, accumulatedLayers, 2, 4, 4);
 
-    for (int ry = 0; ry < 2; ++ry)
-        for (int rx = 0; rx < 2; ++rx)
-        {
-            int oy = y + ry;
-            int ox = x + rx;
-            if (oy < oH && ox < oW)
-                output[((b * oH) + oy) * oW + ox] = result[ry][rx];
-        }
+    float result[4];
+    TEN_MUL(result, tmp2, (__constant float*)A, 2, 4, 2);
+
+    bool xOutput_maxIdx = (xStartTileIdx + 1) < oW;
+    bool yOutput_maxIdx = (yStartTileIdx + 1) < oH;
+
+    int o00 = ((bIdx * oH) + yStartTileIdx                  ) * oW + xStartTileIdx;
+    int o01 = ((bIdx * oH) + yStartTileIdx                  ) * oW + xStartTileIdx + xOutput_maxIdx;
+    int o10 = ((bIdx * oH) + yStartTileIdx + yOutput_maxIdx ) * oW + xStartTileIdx;
+    int o11 = ((bIdx * oH) + yStartTileIdx + yOutput_maxIdx ) * oW + xStartTileIdx + xOutput_maxIdx;
+
+    output[o00] = result[0                 ][0                 ];
+    output[o01] = result[0                 ][0 + xOutput_maxIdx];
+    output[o10] = result[0 + yOutput_maxIdx][0                 ];
+    output[o11] = result[yOutput_maxIdx    ][xOutput_maxIdx    ];
 }
-
 
