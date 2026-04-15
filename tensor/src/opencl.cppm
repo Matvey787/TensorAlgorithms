@@ -8,6 +8,7 @@ module;
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <mutex>
 
 #ifdef WITH_OPENCL
 
@@ -317,7 +318,6 @@ readKernel(std::string_view fileWithKernel)
     return buffer.str();
 }
 
-
 export class KernelExecutor final
 {
     cl::Device       device_;
@@ -325,7 +325,18 @@ export class KernelExecutor final
     cl::Program      program_;
     cl::CommandQueue queue_;
 
+    mutable std::mutex queueGuard_;
+
+    class BufferData
+    {
+    public:
+        cl::Buffer          clBuff;
+        cl_mem_flags        flags;
+        std::size_t         size;
+    };
+
     std::unordered_map<std::string, cl::Kernel> kernelsData_;
+    std::unordered_map<std::string, BufferData> buffersData_;
 
 public:
 
@@ -362,7 +373,6 @@ public:
         return it->second;
     }
 
-    
     cl::Kernel& getKernel(std::string_view kernelName)
     {
         std::string name(kernelName);
@@ -370,19 +380,93 @@ public:
         auto it = kernelsData_.find(name);
 
         if (it == kernelsData_.end())
-            throw std::runtime_error("Kernel '" + name + "' is not registered. Call registerKernel() first.");
+            throw std::runtime_error("Kernel '" + name + "' is not registered.");
 
         return it->second;
     }
 
-    const cl::Context&      context() const { return context_; }
-    const cl::CommandQueue& queue()   const { return queue_;   }
-    const cl::Device&       device()  const { return device_;  }
-
-    void finishQueue()
+    void registerBuffer(std::string_view  buffName,
+                        cl_mem_flags      flags,
+                        std::size_t       buffSize)
     {
+        if (flags & CL_MEM_COPY_HOST_PTR)
+            throw std::runtime_error("An attempt to register a buffer with the CL_MEM_COPY_HOST_PTR flag without a pointer to the host buffer.");
+
+        std::string name(buffName);
+
+        buffersData_.emplace(std::string(buffName), BufferData{
+            .clBuff   = cl::Buffer(context_, flags, sizeof(float) * buffSize),
+            .flags    = flags,
+            .size     = buffSize
+        });
+    }
+
+    void registerBuffer(std::string_view       buffName,
+                        cl_mem_flags           flags,
+                        const std::vector<float>&    hostData)
+    {
+        std::string name(buffName);
+
+        BufferData buffData;
+        buffData.flags    = flags;
+        buffData.size     = hostData.size();
+        buffData.clBuff   = cl::Buffer(
+            context_,
+            flags,
+            sizeof(float) * buffData.size,
+            const_cast<float*>(hostData.data())
+        );
+
+        buffersData_.emplace(name, std::move(buffData));
+    }
+
+    cl::Buffer& getClBuffer(std::string_view buffName)
+    {
+        auto it = buffersData_.find(std::string(buffName));
+
+        if (it == buffersData_.end())
+            throw std::runtime_error("Buffer " + std::string(buffName) + "   is not registered.");
+
+        return it->second.clBuff;
+    }
+
+    void fetchBuffer(std::string_view buffName, std::vector<float>& dst)
+    {
+        auto it = buffersData_.find(std::string(buffName));
+
+        if (it == buffersData_.end())
+            throw std::runtime_error("Buffer " + std::string(buffName) + " is not registered.");
+
+        BufferData& buffData = it->second;
+
+        dst.resize(buffData.size);
+
+        {
+            std::lock_guard lock(queueGuard_);
+            queue_.enqueueReadBuffer(
+                buffData.clBuff,
+                CL_TRUE,
+                0,
+                sizeof(float) * buffData.size,
+                dst.data()
+            );
+        }
+    }
+
+    void enqueueNDRange(cl::Kernel& kernel, cl::NDRange global) const
+    {
+        std::lock_guard lock(queueGuard_);
+        queue_.enqueueNDRangeKernel(kernel, cl::NullRange, global, cl::NullRange);
+    }
+
+    void finish()
+    {
+        std::lock_guard lock(queueGuard_);
         queue_.finish();
     }
+
+    const cl::Context& context() const { return context_; }
+    const cl::Device&  device()  const { return device_;  }
 };
 
 
