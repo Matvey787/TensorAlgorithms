@@ -161,31 +161,15 @@ Tensor<ValT> conv_naive_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kerne
     const std::vector<float> kFlatData{kernel.data()};
     std::vector<float> oFlatData(oH * oW * iB, 0.0f);
 
-    cl::Buffer iBuff(
-        executor.context(),
-        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-        sizeof(float) * input.size(),
-        const_cast<float*>(iFlatData.data())
-    );
-
-    cl::Buffer kBuff(
-        executor.context(),
-        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-        sizeof(float) * kernel.size(),
-        const_cast<float*>(kFlatData.data())
-    );
-    
-    cl::Buffer oBuff(
-        executor.context(),
-        CL_MEM_READ_WRITE,
-        sizeof(float) * oFlatData.size()
-    );
+    executor.registerBuffer("iBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, std::move(iFlatData));
+    executor.registerBuffer("kBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, kFlatData);
+    executor.registerBuffer("oBuff", CL_MEM_WRITE_ONLY, oH * oW * iB);
 
     auto& naive_conv = executor.registerKernel("naive_conv");
 
-    naive_conv.setArg(0,  iBuff);
-    naive_conv.setArg(1,  kBuff);
-    naive_conv.setArg(2,  oBuff);
+    naive_conv.setArg(0,  executor.getClBuffer("iBuff"));
+    naive_conv.setArg(1,  executor.getClBuffer("kBuff"));
+    naive_conv.setArg(2,  executor.getClBuffer("oBuff"));
     naive_conv.setArg(3,  static_cast<int>(iH));
     naive_conv.setArg(4,  static_cast<int>(iW));
     naive_conv.setArg(5,  static_cast<int>(kH));
@@ -195,22 +179,11 @@ Tensor<ValT> conv_naive_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kerne
     naive_conv.setArg(9,  static_cast<int>(iC));
     naive_conv.setArg(10, static_cast<int>(iB));
 
-    executor.queue().enqueueNDRangeKernel(
-        naive_conv,
-        cl::NullRange,
-        cl::NDRange(oW, oH, iB),
-        cl::NullRange
-    );
+    executor.enqueueNDRange(naive_conv, cl::NDRange(oW, oH, iB));
 
-    executor.queue().enqueueReadBuffer(
-        oBuff,
-        CL_TRUE,
-        0,
-        sizeof(float) * oFlatData.size(),
-        oFlatData.data()
-    );
+    executor.fetchBuffer("oBuff", oFlatData);
 
-    executor.finishQueue();
+    executor.finish();
 
     return Tensor<float>(std::move(oFlatData), oH, oW, 1, iB);
 }
@@ -397,73 +370,36 @@ Tensor<ValT> conv_winograd_gpu(const Tensor<ValT>& input,
     const std::vector<float> kFlatData{kernel.data()};
     std::vector<float> oFlatData(oH * oW * iB, 0.0f);
 
-    cl::Buffer iBuff(
-        executor.context(),
-        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-        sizeof(float) * iFlatData.size(),
-        const_cast<float*>(iFlatData.data())
-    );
-
-    cl::Buffer kBuff(
-        executor.context(),
-        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-        sizeof(float) * kernel.size(),
-        const_cast<float*>(kFlatData.data())
-    );
-
-    cl::Buffer oBuff(
-        executor.context(),
-        CL_MEM_WRITE_ONLY,
-        sizeof(float) * oH * oW * iB
-    );
-
-    cl::Buffer transformedKernelBuff(
-        executor.context(),
-        CL_MEM_READ_WRITE,
-        sizeof(float) * kernel.size()
-    );
+    executor.registerBuffer("iBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, std::move(iFlatData));
+    executor.registerBuffer("kBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, std::move(kFlatData));
+    executor.registerBuffer("oBuff", CL_MEM_WRITE_ONLY, oH * oW * iB);
+    executor.registerBuffer("transformedKernelBuff", CL_MEM_READ_WRITE, kernel.size());
 
     auto& transformKernel = executor.registerKernel("transformKernel");
 
-    transformKernel.setArg(0, kBuff);
-    transformKernel.setArg(1, transformedKernelBuff);
+    transformKernel.setArg(0, executor.getClBuffer("kBuff"));
+    transformKernel.setArg(1, executor.getClBuffer("transformedKernelBuff"));
     transformKernel.setArg(2, static_cast<int>(iC));
 
-    executor.queue().enqueueNDRangeKernel(
-        transformKernel,
-        cl::NullRange,
-        cl::NDRange(iC),
-        cl::NullRange
-    );
+    executor.enqueueNDRange(transformKernel, cl::NDRange(iC));
 
     auto& winograd_conv = executor.registerKernel("winograd_conv");
 
-    winograd_conv.setArg(0, iBuff);
-    winograd_conv.setArg(1, transformedKernelBuff);
-    winograd_conv.setArg(2, oBuff);
+    winograd_conv.setArg(0, executor.getClBuffer("iBuff"));
+    winograd_conv.setArg(1, executor.getClBuffer("transformedKernelBuff"));
+    winograd_conv.setArg(2, executor.getClBuffer("oBuff"));
     winograd_conv.setArg(3, static_cast<int>(iH));
-    winograd_conv.setArg(4, static_cast<int>(iW));
+    winograd_conv.setArg(4, static_cast<int>(iW));  
     winograd_conv.setArg(5, static_cast<int>(oH));
     winograd_conv.setArg(6, static_cast<int>(oW));
     winograd_conv.setArg(7, static_cast<int>(iC));
     winograd_conv.setArg(8, static_cast<int>(iB));
 
-    executor.queue().enqueueNDRangeKernel(
-        winograd_conv,
-        cl::NullRange,
-        cl::NDRange((oW + 1) / 2, (oH + 1) / 2, iB),
-        cl::NullRange
-    );
+    executor.enqueueNDRange(winograd_conv, cl::NDRange((oW + 1) / 2, (oH + 1) / 2, iB));
 
-    executor.queue().enqueueReadBuffer(
-        oBuff,
-        CL_TRUE,
-        0,
-        sizeof(float) * oFlatData.size(),
-        oFlatData.data()
-    );
+    executor.fetchBuffer("oBuff", oFlatData);
 
-    executor.finishQueue();
+    executor.finish();
 
     return Tensor<float>(std::move(oFlatData), oH, oW, 1, iB);
 }
