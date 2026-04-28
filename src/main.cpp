@@ -1,6 +1,8 @@
 #include <stdexcept>
 #include <iostream>
 #include <ranges>
+#include <functional>
+#include <fstream>
 
 import tensor_gen;
 import tensor_io;
@@ -18,7 +20,7 @@ int main(int argc, char** argv) try
     {
         std::cout << parseObj.getOptions().help();
 
-        exit(0);
+        return 0;
     }
 
     std::string sourceFile;
@@ -46,6 +48,19 @@ int main(int argc, char** argv) try
     auto gpuOption = parseObj.getOptionVal("gpu");
     if (gpuOption) useGpu = gpuOption->as<bool>();
 
+    [[maybe_unused]] bool naiveConv{false};
+    auto naiveOption = parseObj.getOptionVal("naive");
+    if (naiveOption) naiveConv = naiveOption->as<bool>();
+
+    [[maybe_unused]] bool winogradConv{false};
+    auto winogradOption = parseObj.getOptionVal("winograd");
+    if (winogradOption) winogradConv = winogradOption->as<bool>();
+
+    [[maybe_unused]] bool im2colConv{false};
+    auto im2colOption = parseObj.getOptionVal("im2col");
+    if (im2colOption) im2colConv = im2colOption->as<bool>();
+
+
 
 
 
@@ -67,6 +82,29 @@ int main(int argc, char** argv) try
 
     #else
 
+    std::function<tensor::Tensor<float>(tensor::Tensor<float>, 
+                                        tensor::Tensor<float>, 
+                                        bool                  )> convFunc;
+
+    if (naiveConv)
+    {
+        convFunc = tensor::conv_naive<float>;
+    }
+    else if (winogradConv)
+    {
+        convFunc = tensor::conv_winograd<float>;
+    }
+    else if (im2colConv)
+    {
+        convFunc = tensor::conv_im2col<float>;
+    }
+    else
+    {
+        std::cout << parseObj.getOptions().help() << '\n';
+        throw std::runtime_error("Choose naive/winograd/im2col convolution.");
+    }
+
+
     std::vector<tensor::Tensor<float>> outputTensors;
     outputTensors.reserve(tensors.size() / 2);
 
@@ -79,16 +117,7 @@ int main(int argc, char** argv) try
         auto& input = chunk[0];
         auto& kernel = chunk[1];
 
-        if ((kernel.width() == kernel.height()) &&
-            (kernel.width() == 3) &&
-            (input.height() >= 3 and input.width() >= 3))
-        {
-            outputTensors.emplace_back(tensor::conv_winograd(input, kernel, useGpu));
-        }
-        else
-        {
-            outputTensors.emplace_back(tensor::conv_naive(input, kernel, useGpu));
-        }
+        outputTensors.emplace_back(convFunc(input, kernel, useGpu));
     }
 
     if (outputFile.empty())

@@ -23,7 +23,16 @@ public:
             ("s,source", "Input source file", cxxopts::value<std::string>())
             ("o,output", "Output JSON file name", cxxopts::value<std::string>())
             ("h,help", "Show help message")
-            ("gpu", "Use GPU", cxxopts::value<bool>()->default_value("false"));
+            ("gpu", "Use GPU", cxxopts::value<bool>()->default_value("false"))
+            ("winograd", 
+                "Use Winograd convolution algoritm. (Supported kernel is 3 * 3)", 
+                cxxopts::value<bool>()->default_value("false"))
+            ("im2col", 
+                "Use Im2Col convolution algoritm.", 
+                cxxopts::value<bool>()->default_value("false"))
+            ("naive", 
+                "Use naive convolution algorithm.", 
+                cxxopts::value<bool>()->default_value("false"));
 
         result_ = options_.parse(argc, argv);
     }

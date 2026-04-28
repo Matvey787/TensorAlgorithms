@@ -221,17 +221,15 @@ public:
         batchSize_ = layers_.size() / channels_;
     }
 
-    Layer<ValT>& operator()(size_t batch_idx, size_t channel_idx)
+    [[nodiscard]] Layer<ValT>& operator()(size_t batch_idx, size_t channel_idx)
     {
         return layers_[batch_idx * channels_ + channel_idx];
     }
 
-    const Layer<ValT>& operator()(size_t batch_idx, size_t channel_idx) const
+    [[nodiscard]] const Layer<ValT>& operator()(size_t batch_idx, size_t channel_idx) const
     {
         return layers_[batch_idx * channels_ + channel_idx];
     }
-
-
     
     // for opencl global buffers
 

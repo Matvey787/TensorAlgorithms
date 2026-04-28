@@ -5,6 +5,8 @@ module;
 #include <vector>
 #include <iostream>
 #include <concepts>
+#include <numeric>
+#include <immintrin.h>
 
 #ifdef WITH_OPENCL
 
@@ -405,6 +407,131 @@ Tensor<ValT> conv_winograd_gpu(const Tensor<ValT>& input,
 }
 
 #endif
+
+
+// ------------------------------------------------------------------
+// Im2Col Implementation (CPU + GPU)
+// ------------------------------------------------------------------
+
+
+
+
+template<typename ValT>
+    requires mustBeFloat<ValT>
+Tensor<ValT> conv_im2col_cpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel);
+
+template<typename ValT>
+    requires mustBeFloat<ValT>
+Tensor<ValT> conv_im2col_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel) {};
+
+export template<typename ValT>
+Tensor<ValT> conv_im2col(const Tensor<ValT>&   input, 
+                           const Tensor<ValT>&   kernel, 
+                           [[maybe_unused]] bool useGpu = false)
+{
+
+    #ifdef WITH_OPENCL
+
+    if (useGpu) return conv_im2col_gpu(input, kernel);
+
+    #endif
+
+    return conv_im2col_cpu(input, kernel);
+}
+
+
+template<typename ValT>
+    requires mustBeFloat<ValT>
+__attribute__((target("avx")))
+Tensor<ValT> conv_im2col_cpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
+{
+    const std::size_t iH     = input.height();
+    const std::size_t iW     = input.width();
+    const std::size_t iCh    = input.channels();
+    const std::size_t iBatch = input.batchSize();
+
+    const std::size_t kH = kernel.height();
+    const std::size_t kW = kernel.width();
+
+    const std::size_t oH = iH - kH + 1;
+    const std::size_t oW = iW - kW + 1;
+
+    const std::size_t tileSize   = kH * kW;
+    const std::size_t paddedSize = ((tileSize + 7) / 8) * 8;
+
+
+    ValT* inputTile = static_cast<ValT*>(
+        std::aligned_alloc(32, paddedSize * sizeof(ValT)));
+
+    if (!inputTile) throw std::bad_alloc{};
+
+    std::fill(inputTile, inputTile + paddedSize, ValT{0});
+
+    ValT* rawKernelData = static_cast<ValT*>(
+        std::aligned_alloc(32, iCh * paddedSize * sizeof(ValT)));
+
+    if (!rawKernelData)
+    {
+        std::free(inputTile);
+        throw std::bad_alloc{};
+    }
+    std::fill(rawKernelData, rawKernelData + iCh * paddedSize, ValT{0});
+
+    auto kernelRow = [&](std::size_t c) -> ValT*
+    {
+        return rawKernelData + c * paddedSize;
+    };
+
+    for (std::size_t c = 0; c < iCh; ++c)
+    {
+        const auto& srcChannel = kernel(0, c).data();
+        std::copy(srcChannel.begin(), srcChannel.end(), kernelRow(c));
+    }
+
+
+    Tensor<ValT> output(oH, oW, 1, iBatch);
+
+    alignas(32) ValT simdRes[8];
+
+    for (std::size_t b = 0; b < iBatch; ++b)
+    {
+        for (std::size_t y = 0; y < oH; ++y)
+        {
+            for (std::size_t x = 0; x < oW; ++x)
+            {
+                ValT accumulated{0};
+
+                for (std::size_t c = 0; c < iCh; ++c)
+                {
+                    const tensor::Layer<ValT>& iLayer = input(b, c);
+
+                    for (std::size_t tile_y = 0; tile_y < kH; ++tile_y)
+                        for (std::size_t tile_x = 0; tile_x < kW; ++tile_x)
+                            inputTile[tile_y * kW + tile_x] = iLayer[x + tile_x, y + tile_y];
+
+                    const ValT* kRow = kernelRow(c);
+                    for (std::size_t i = 0; i < paddedSize; i += 8)
+                    {
+                        __m256 iv = _mm256_load_ps(inputTile + i);
+                        __m256 kv = _mm256_load_ps(kRow + i);
+                        __m256 rv = _mm256_mul_ps(iv, kv);
+                        _mm256_store_ps(simdRes, rv);
+
+                        accumulated += simdRes[0] + simdRes[1] + simdRes[2] + simdRes[3]
+                                     + simdRes[4] + simdRes[5] + simdRes[6] + simdRes[7];
+                    }
+                }
+
+                output(b, 0)[x, y] = accumulated;
+            }
+        }
+    }
+
+    std::free(inputTile);
+    std::free(rawKernelData);
+
+    return output;
+}
 
 
 
