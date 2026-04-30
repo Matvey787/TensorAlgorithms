@@ -1,7 +1,7 @@
-// Ядро, которая переводит картинку в транспонированную картинку-столбец.
-// Под картинкой я понимаю один из тензоров во входящем батче.
-// Под картинкой-столбец подразумевается матрица, столбцы которой есть тайлы, 
-// на которые дальше матрично умножается строка плоского ядра.
+// A kernel that transforms an image into a TRANSPOSED columnar image.
+// By ‘image’, I mean one of the tensors in the input batch.
+// A ‘columnar image’ refers to a matrix whose columns are tiles, 
+// onto which the row of a flat kernel is then multiplied matrix-wise.
 
 
 

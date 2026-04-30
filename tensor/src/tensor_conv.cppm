@@ -609,18 +609,52 @@ Tensor<ValT> conv_im2col_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kern
         const float alpha = 1.0f;
         const float beta = 0.0f;
 
+        // Now kFlatData is row matrix [1 x kernel size]
+        // colBuff is transposed column matrix, 
+        // which will need to be transposed for matrix multiplication
+
+        
+        /*
+        For example:
+
+        input = [[1, 2,  3,  4,  |
+                  5, 6,  7,  8,  | first layer
+                  9, 10, 11, 12],|
+                 [1, 2,  3,  4,    |
+                  5, 6,  7,  8,    | second layer
+                  9, 10, 11, 12]]  |
+
+        kernel = [[9, 8, 7,
+                   6, 5, 4,
+                   3, 2, 1],
+                  [1, 2, 3
+                   4, 5, 6,
+                   7, 8, 9]]
+        
+        kFlatData = [9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        colBuff = [
+                    [1, 2, 3, 5, 6, 7, 9, 10, 11, 1, 2, 3, 5, 6, 7, 9, 10, 11],
+                    [2, 3, 4, 6, 7, 8, 10, 11, 12, 2, 3, 4, 6, 7, 8, 10, 11, 12]
+                  ]
+        
+        output = kFlatData * transposed colBuff
+
+        */
+
+
         clblast::StatusCode status = clblast::Gemm<float>(
-            clblast::Layout::kRowMajor,
-            clblast::Transpose::kNo, 
-            clblast::Transpose::kYes,
-            1,      
-            colRows,
-            colCols,
-            alpha,
-            executor.getClBuffer("kBuff")(),  0, colCols,
-            executor.getClBuffer("colBuff")(), 0, colCols,
-            beta,
-            executor.getClBuffer("oBuff")(),  0, colRows,
+            clblast::Layout::kRowMajor, // row matrixes
+            clblast::Transpose::kNo,    // no need to transpose kBuff
+            clblast::Transpose::kYes,   // need to transpose colBuff (see explanation before)
+            1,                          // number of rows in kBuff
+            colRows,                    // width of transposed kBuff
+            colCols,                    // width of kBuff = height of transposed colBuff = colCols
+            alpha,                      // alpha * kBuff * colBuff, so alpha = 1
+            executor.getClBuffer("kBuff")(),  0, colCols, // colCols - row length step in kernel 
+            executor.getClBuffer("colBuff")(), 0, colCols, // colCols - row length in initial
+            beta, // beta = 0
+            executor.getClBuffer("oBuff")(),  0, colRows, // colRows - row length in oBuff
             &(executor.queue()()), nullptr
         );
 
