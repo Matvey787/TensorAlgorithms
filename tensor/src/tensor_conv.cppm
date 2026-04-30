@@ -20,6 +20,7 @@ module;
 #endif
 
 #include "opencl.hpp"
+#include <clblast.h>
 
 #endif
 
@@ -159,13 +160,14 @@ Tensor<ValT> conv_naive_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kerne
     if (iH < kH || iW < kW)
         throw std::runtime_error("The input tensor cannot be smaller than the kernel.");
 
-    const std::vector<float> iFlatData{input.data()};
-    const std::vector<float> kFlatData{kernel.data()};
+    const std::vector<float> iFlatData = input.data();
+    const std::vector<float> kFlatData = kernel.data();
+
     std::vector<float> oFlatData(oH * oW * iB, 0.0f);
 
-    executor.registerBuffer("iBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, std::move(iFlatData));
-    executor.registerBuffer("kBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, kFlatData);
-    executor.registerBuffer("oBuff", CL_MEM_WRITE_ONLY, oH * oW * iB);
+    executor.updateBuffer("iBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, iFlatData);
+    executor.updateBuffer("kBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, kFlatData);
+    executor.updateBuffer("oBuff", CL_MEM_WRITE_ONLY, oH * oW * iB);
 
     auto& naive_conv = executor.registerKernel("naive_conv");
 
@@ -368,14 +370,26 @@ Tensor<ValT> conv_winograd_gpu(const Tensor<ValT>& input,
     const size_t oH = iH - 2;
     const size_t oW = iW - 2;
 
+    const std::size_t kH = kernel.height();
+    const std::size_t kW = kernel.width(); 
+
+    if (kH != 3 || kW != 3)
+        throw std::runtime_error("Kernel should be 3x3 for Winograd F(2,3).");
+
+    if (iH < 3 || iW < 3)
+        throw std::runtime_error("Minimum size of input matrix for Winograd is 3x3.");
+
+    if (iH < kH || iW < kW)
+        throw std::runtime_error("The input tensor cannot be smaller than the kernel.");
+
     const std::vector<float> iFlatData{input.data()};
     const std::vector<float> kFlatData{kernel.data()};
     std::vector<float> oFlatData(oH * oW * iB, 0.0f);
 
-    executor.registerBuffer("iBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, std::move(iFlatData));
-    executor.registerBuffer("kBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, std::move(kFlatData));
-    executor.registerBuffer("oBuff", CL_MEM_WRITE_ONLY, oH * oW * iB);
-    executor.registerBuffer("transformedKernelBuff", CL_MEM_READ_WRITE, kernel.size());
+    executor.updateBuffer("iBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, std::move(iFlatData));
+    executor.updateBuffer("kBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, std::move(kFlatData));
+    executor.updateBuffer("oBuff", CL_MEM_WRITE_ONLY, oH * oW * iB);
+    executor.updateBuffer("transformedKernelBuff", CL_MEM_READ_WRITE, kernel.size());
 
     auto& transformKernel = executor.registerKernel("transformKernel");
 
@@ -422,7 +436,7 @@ Tensor<ValT> conv_im2col_cpu(const Tensor<ValT>& input, const Tensor<ValT>& kern
 
 template<typename ValT>
     requires mustBeFloat<ValT>
-Tensor<ValT> conv_im2col_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel) {};
+Tensor<ValT> conv_im2col_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel);
 
 export template<typename ValT>
 Tensor<ValT> conv_im2col(const Tensor<ValT>&   input, 
@@ -532,6 +546,106 @@ Tensor<ValT> conv_im2col_cpu(const Tensor<ValT>& input, const Tensor<ValT>& kern
 
     return output;
 }
+
+
+#ifdef  WITH_OPENCL
+template<typename ValT>
+    requires mustBeFloat<ValT>
+Tensor<ValT> conv_im2col_gpu(const Tensor<ValT>& input, const Tensor<ValT>& kernel)
+{
+    const size_t iH = input.height();
+    const size_t iW = input.width();
+    const size_t iC = input.channels();
+    const size_t iB = input.batchSize();
+
+    const size_t kH = kernel.height();
+    const size_t kW = kernel.width();
+    const size_t kC = kernel.channels();
+
+    if (iH < kH || iW < kW)
+        throw std::runtime_error("The input tensor cannot be smaller than the kernel.");
+        
+    if (iC != kC)
+        throw std::runtime_error("Kernel channels must match input channels.");
+
+    const size_t oH = iH - kH + 1;
+    const size_t oW = iW - kW + 1;
+    const size_t kSize = kH * kW;
+    const size_t colRows = oH * oW;
+    const size_t colCols = kSize * iC;
+
+    static opencl::KernelExecutor executor("tensor/kernels/im2colKernel.cl");
+
+    const std::vector<float> iFlatData = input.data();
+    const std::vector<float> kFlatData = kernel.data();
+    
+    executor.updateBuffer("iBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, iFlatData);
+    executor.updateBuffer("kBuff", CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, kFlatData);
+    
+    executor.updateBuffer("colBuff", CL_MEM_READ_WRITE, colRows * colCols);
+    
+    executor.updateBuffer("oBuff", CL_MEM_READ_WRITE, colRows);
+
+    auto& im2colKernel = executor.registerKernel("im2col");
+
+    Tensor<ValT> output(oH, oW, 1, iB);
+
+    for (size_t b = 0; b < iB; ++b)
+    {
+        const int imageOffset = static_cast<int>(b * iC * iH * iW);
+        
+        im2colKernel.setArg(0, executor.getClBuffer("iBuff"));
+        im2colKernel.setArg(1, executor.getClBuffer("colBuff"));
+        im2colKernel.setArg(2, static_cast<int>(iH));
+        im2colKernel.setArg(3, static_cast<int>(iW));
+        im2colKernel.setArg(4, static_cast<int>(kH));
+        im2colKernel.setArg(5, static_cast<int>(kW));
+        im2colKernel.setArg(6, static_cast<int>(oH));
+        im2colKernel.setArg(7, static_cast<int>(oW));
+        im2colKernel.setArg(8, imageOffset);
+
+        executor.enqueueNDRange(im2colKernel, cl::NDRange(iC));
+
+        const float alpha = 1.0f;
+        const float beta = 0.0f;
+
+        clblast::StatusCode status = clblast::Gemm<float>(
+            clblast::Layout::kRowMajor,
+            clblast::Transpose::kNo, 
+            clblast::Transpose::kYes,
+            1,      
+            colRows,
+            colCols,
+            alpha,
+            executor.getClBuffer("kBuff")(),  0, colCols,
+            executor.getClBuffer("colBuff")(), 0, colCols,
+            beta,
+            executor.getClBuffer("oBuff")(),  0, colRows,
+            &(executor.queue()()), nullptr
+        );
+
+        if (status != clblast::StatusCode::kSuccess)
+        {
+            throw std::runtime_error(
+                "clBLAST Gemm failed at batch " + std::to_string(b) +
+                ", error code: " + std::to_string(static_cast<int>(status))
+            );
+        }
+
+        std::vector<float> batchOutData(colRows);
+
+        executor.fetchBuffer("oBuff", batchOutData);
+
+        Layer<ValT> layer(batchOutData.begin(), batchOutData.end(), oH);
+        
+        output(b, 0) = std::move(layer);
+    }
+
+    return output;
+}
+
+#endif
+
 
 
 

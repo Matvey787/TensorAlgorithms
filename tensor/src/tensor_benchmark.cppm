@@ -29,7 +29,9 @@ public:
 
     double naive_ms;
     double winograd_ms;
-    double speedup;
+    double im2col_ms;
+    double speedupWinograd;
+    double speedupIm2Col;
 };
 
 template<typename ValT>
@@ -51,26 +53,35 @@ double measure(auto fn, size_t runs)
 }
 
 template<typename ValT>
-BenchResult<ValT> benchmark(const Tensor<ValT>& input, const Tensor<ValT>& kernel, size_t runs = 10,
-const bool useGpu = false)
+decltype(auto)
+benchmark(
+    const Tensor<ValT>& input,
+    const Tensor<ValT>& kernel,
+    size_t runs = 10,
+    const bool useGpu = false
+)
 {
     // прогрев
-    conv_naive(input, kernel);
-    conv_winograd(input, kernel);   
+    conv_naive(input, kernel, useGpu);
+
 
     double naive_ms = measure<ValT>([&]{ conv_naive(input, kernel, useGpu); }, runs);
     double winograd_ms = measure<ValT>([&]{ conv_winograd(input, kernel, useGpu); }, runs);
+    double im2col_ms = measure<ValT>([&]{ conv_im2col(input, kernel, useGpu); }, runs);
 
-    return {
-        .input_h        = input.height(),
-        .input_w        = input.width(),
-        .input_channels = input.channels(),
-        .input_batch    = input.batchSize(),
-        .kernel_h       = kernel.height(),
-        .kernel_w       = kernel.width(),
-        .naive_ms       = naive_ms,
-        .winograd_ms    = winograd_ms,
-        .speedup        = naive_ms / winograd_ms
+    return BenchResult<ValT>{
+        .input_h         = input.height(),
+        .input_w         = input.width(),
+        .input_channels  = input.channels(),
+        .input_batch     = input.batchSize(),
+        .kernel_h        = kernel.height(),
+        .kernel_w        = kernel.width(),
+        .naive_ms        = naive_ms,
+        .winograd_ms     = winograd_ms,
+        .im2col_ms       = im2col_ms,
+        .speedupWinograd = naive_ms / winograd_ms,
+        .speedupIm2Col    = naive_ms / im2col_ms
+
     };
 }
 
@@ -116,17 +127,20 @@ void append_benchmark(const std::vector<BenchResult<ValT>>& newData,
         throw std::runtime_error("Cannot open file: " + outputFile);
     }
 
-    for (const auto& r : newData)
+    for (const auto& benchResult : newData)
     {
-        nlohmann::json j;
-        j["input"]  = { {"height", r.input_h}, {"width", r.input_w},
-                        {"channels", r.input_channels}, {"batchSize", r.input_batch} };
-        j["kernel"] = { {"height", r.kernel_h}, {"width", r.kernel_w} };
-        j["naive_ms"]    = r.naive_ms;
-        j["winograd_ms"] = r.winograd_ms;
-        j["speedup"]     = r.speedup;
+        nlohmann::json jsonObj;
+        jsonObj["input"]  = { {"height", benchResult.input_h}, {"width", benchResult.input_w},
+                        {"channels", benchResult.input_channels}, {"batchSize", benchResult.input_batch} };
+        jsonObj["kernel"] = { {"height", benchResult.kernel_h}, {"width", benchResult.kernel_w} };
+        jsonObj["naive_ms"]    = benchResult.naive_ms;
+        jsonObj["winograd_ms"] = benchResult.winograd_ms;
+        jsonObj["im2col_ms"]     = benchResult.im2col_ms;
 
-        file << j.dump() << '\n';
+        jsonObj["speedupWinograd"]     = benchResult.speedupWinograd;
+        jsonObj["speedupIm2Col"]       = benchResult.speedupIm2Col;
+
+        file << jsonObj.dump() << '\n';
     }
 }
 

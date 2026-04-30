@@ -125,8 +125,8 @@ __kernel void winograd_conv(
     float tmp2[8];
     TEN_MUL(tmp2, (__constant float*)AT, accumulatedLayers, 2, 4, 4);
 
-    float result[4];
-    TEN_MUL(result, tmp2, (__constant float*)A, 2, 4, 2);
+    float result[2][2];
+    TEN_MUL((float*)result, tmp2, (__constant float*)A, 2, 4, 2);
 
     bool xOutput_maxIdx = (xStartTileIdx + 1) < oW;
     bool yOutput_maxIdx = (yStartTileIdx + 1) < oH;

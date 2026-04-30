@@ -420,6 +420,41 @@ public:
         buffersData_.emplace(name, std::move(buffData));
     }
 
+    void updateBuffer(std::string_view buffName,
+                  cl_mem_flags     flags,
+                  const std::vector<float>& hostData)
+    {
+        std::string name(buffName);
+
+        BufferData buffData;
+        buffData.flags  = flags;
+        buffData.size   = hostData.size();
+        buffData.clBuff = cl::Buffer(
+            context_,
+            flags,
+            sizeof(float) * buffData.size,
+            const_cast<float*>(hostData.data())
+        );
+
+        buffersData_.insert_or_assign(name, std::move(buffData));
+    }
+
+    void updateBuffer(std::string_view buffName,
+                    cl_mem_flags     flags,
+                    std::size_t      buffSize)
+    {
+        if (flags & CL_MEM_COPY_HOST_PTR)
+            throw std::runtime_error("...");
+
+        std::string name(buffName);
+
+        buffersData_.insert_or_assign(name, BufferData{
+            .clBuff = cl::Buffer(context_, flags, sizeof(float) * buffSize),
+            .flags  = flags,
+            .size   = buffSize
+        });
+    }
+
     cl::Buffer& getClBuffer(std::string_view buffName)
     {
         auto it = buffersData_.find(std::string(buffName));
@@ -467,6 +502,7 @@ public:
 
     const cl::Context& context() const { return context_; }
     const cl::Device&  device()  const { return device_;  }
+    cl::CommandQueue&  queue() { return queue_;  }
 };
 
 

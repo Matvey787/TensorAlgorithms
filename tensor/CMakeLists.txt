@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.28)
 project(Tensor_lib LANGUAGES CXX)
 
+
+
+
+
+
+
+
 set(TENSOR_LIB tensor_lib)
 add_library(${TENSOR_LIB})
 
@@ -29,16 +36,18 @@ target_include_directories(${TENSOR_LIB}
 
 
 
-
 find_package(OpenCL)
+
+add_subdirectory(third_party/CLBlast)
 
 if(OpenCL_FOUND)
 
     message(STATUS "OpenCL found: ${OpenCL_VERSION_STRING}")
 
     target_link_libraries(${TENSOR_LIB}
-        PRIVATE
+        PUBLIC
             OpenCL::OpenCL
+            clblast
     )
 
     target_compile_definitions(${TENSOR_LIB} 
@@ -47,7 +56,7 @@ if(OpenCL_FOUND)
     )
 
     target_include_directories(${TENSOR_LIB}
-        PRIVATE
+        PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/src/
     )
 

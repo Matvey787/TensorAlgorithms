@@ -4,3 +4,6 @@
 [submodule "src/third_party/cxxopts"]
 	path = src/third_party/cxxopts
 	url = https://github.com/jarro2783/cxxopts.git
+[submodule "tensor/third_party/CLBlast"]
+	path = tensor/third_party/CLBlast
+	url = https://github.com/CNugteren/CLBlast.git

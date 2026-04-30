@@ -15,7 +15,7 @@ add_executable(${EXE_NAME} src/main.cpp)
 target_link_libraries(${EXE_NAME}
     PRIVATE
         tensor_lib
-        cxxopts::cxxopts
+        cxxopts::cxxopts    
 )
 
 file(GLOB_RECURSE EXE_MODULES
